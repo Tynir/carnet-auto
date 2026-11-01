@@ -1,0 +1,908 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#efeee9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121315" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Carnet auto">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<title>Carnet auto</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout : un carnet d'atelier — compteur kilométrique en tête, échéances en vignettes d'état, historique en registre par année */
+:root {
+  --bg: #efeee9;          /* carton de carnet d'entretien */
+  --surface: #fbfaf7;
+  --ink: #1c1d1f;
+  --muted: #64656a;
+  --line: #d9d7cf;
+  --accent: #2f4a6d;      /* bleu atelier */
+  --accent-ink: #ffffff;
+  --accent-soft: #dbe3ee;
+  --ok: #2f7a4f; --ok-soft: #dcefe3;
+  --warn: #a76a00; --warn-soft: #f6e7c8;
+  --late: #b3261e; --late-soft: #f7dcda;
+  --odo-bg: #1c1d1f; --odo-ink: #f3efe2;
+  --shadow: 0 1px 2px rgba(25, 30, 40, .07), 0 6px 18px rgba(25, 30, 40, .07);
+  --f-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121315; --surface: #1b1c1f; --ink: #ebeae6; --muted: #9c9da3; --line: #2d2e33;
+    --accent: #8fb0dc; --accent-ink: #0d1726; --accent-soft: #1f2b3b;
+    --ok: #6cc391; --ok-soft: #1a2e22; --warn: #e6b04a; --warn-soft: #33280f; --late: #ff8a80; --late-soft: #3a1c1a;
+    --odo-bg: #000000; --odo-ink: #f3efe2;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.3);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121315; --surface: #1b1c1f; --ink: #ebeae6; --muted: #9c9da3; --line: #2d2e33;
+  --accent: #8fb0dc; --accent-ink: #0d1726; --accent-soft: #1f2b3b;
+  --ok: #6cc391; --ok-soft: #1a2e22; --warn: #e6b04a; --warn-soft: #33280f; --late: #ff8a80; --late-soft: #3a1c1a;
+  --odo-bg: #000000; --odo-ink: #f3efe2;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.3);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 15px; line-height: 1.5;
+  -webkit-tap-highlight-color: transparent;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap {
+  max-width: 760px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+
+/* ---------- barre du haut ---------- */
+.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.top .wrap { display: flex; align-items: center; gap: 10px; padding-block: 10px; min-height: 58px; }
+.top h1, .top h2 {
+  margin: 0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--f-display); font-stretch: 85%; font-weight: 700; font-size: 1.45rem; letter-spacing: -.01em;
+}
+.icon-btn { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--ink); }
+.icon-btn:hover { background: var(--accent-soft); }
+.icon-btn svg { width: 22px; height: 22px; }
+.demo-banner { background: var(--accent-soft); font-size: .82rem; }
+.demo-banner .wrap { padding-block: 8px; display: flex; gap: 8px; align-items: baseline; }
+
+main.wrap { padding-block: 16px 130px; display: grid; gap: 22px; }
+.section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+.section-head h3 { margin: 0; font-size: .74rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.section-head .aside { font-size: .78rem; color: var(--muted); }
+
+/* ---------- liste des véhicules ---------- */
+.vehicles { display: grid; gap: 12px; }
+.vehicle-card {
+  display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; text-align: left;
+  padding: 16px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); box-shadow: var(--shadow);
+}
+.vehicle-card .name { font-family: var(--f-display); font-stretch: 85%; font-weight: 700; font-size: 1.3rem; line-height: 1.1; min-width: 0; overflow-wrap: anywhere; }
+.vehicle-card .model { color: var(--muted); font-size: .86rem; grid-column: 1; min-width: 0; }
+.vehicle-card .km { grid-column: 2; grid-row: 1 / span 2; text-align: right; }
+.vehicle-card .status-row { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.add-card {
+  display: flex; align-items: center; justify-content: center; gap: 8px; padding: 18px; border-radius: var(--r);
+  border: 1.5px dashed var(--line); background: transparent; color: var(--accent); font-weight: 700;
+}
+.add-card svg { width: 20px; height: 20px; }
+
+/* ---------- compteur ---------- */
+.odo { display: inline-flex; gap: 2px; padding: 4px; border-radius: 8px; background: var(--odo-bg); }
+.odo span {
+  display: grid; place-items: center; min-width: 1.05em; padding: 2px 1px; border-radius: 3px;
+  background: linear-gradient(#2a2b2e, #111 50%, #2a2b2e); color: var(--odo-ink);
+  font-family: var(--f-mono); font-weight: 600; font-size: 1.05rem; line-height: 1.2;
+}
+.odo-unit { font-size: .7rem; color: var(--muted); margin-left: 6px; letter-spacing: .08em; }
+.odo-big .odo span { font-size: 1.6rem; min-width: 1.05em; }
+
+.vehicle-head { display: grid; gap: 10px; }
+.vehicle-head .model { color: var(--muted); }
+.vehicle-head .odo-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.btn-small {
+  display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: .85rem;
+}
+.btn-small svg { width: 16px; height: 16px; color: var(--accent); }
+.km-note { font-size: .78rem; color: var(--muted); }
+
+/* ---------- pastilles d'état ---------- */
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px; font-size: .76rem; font-weight: 700; white-space: nowrap; }
+.chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.chip.ok { background: var(--ok-soft); color: var(--ok); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.chip.late { background: var(--late-soft); color: var(--late); }
+.chip.none { background: var(--line); color: var(--muted); }
+
+/* ---------- échéances ---------- */
+.dues { display: grid; gap: 8px; }
+.due {
+  display: grid; grid-template-columns: 4px 1fr auto; gap: 0 12px; align-items: center;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px 12px 0; overflow: hidden;
+}
+.due .bar { align-self: stretch; border-radius: 0 3px 3px 0; background: var(--ok); }
+.due.warn .bar { background: var(--warn); }
+.due.late .bar { background: var(--late); }
+.due .what { font-weight: 700; min-width: 0; }
+.due .when { font-size: .8rem; color: var(--muted); }
+.due .left { text-align: right; font-size: .82rem; font-weight: 700; white-space: nowrap; }
+.due.ok .left { color: var(--ok); } .due.warn .left { color: var(--warn); } .due.late .left { color: var(--late); }
+.empty-line { padding: 14px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); font-size: .9rem; }
+
+/* ---------- historique ---------- */
+.year { display: grid; gap: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.year-head { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 14px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 70%, var(--bg)); }
+.year-head b { font-family: var(--f-display); font-stretch: 85%; font-size: 1.15rem; }
+.year-head span { font-size: .8rem; color: var(--muted); }
+.entry { display: grid; grid-template-columns: 56px 1fr auto; gap: 2px 12px; padding: 12px 14px; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; width: 100%; }
+.entry:last-child { border-bottom: 0; }
+.entry:hover { background: var(--accent-soft); }
+.entry .d { font-size: .78rem; color: var(--muted); line-height: 1.3; padding-top: 2px; }
+.entry .t { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.entry .s { grid-column: 2; font-size: .82rem; color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+.entry .c { grid-column: 3; grid-row: 1; text-align: right; font-weight: 600; white-space: nowrap; }
+.entry .tag { display: inline-block; font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-right: 6px; }
+
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+.stat .k { font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.stat .v { font-family: var(--f-mono); font-weight: 600; font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- valeur / cote ---------- */
+.value-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); padding: 14px; display: grid; gap: 12px; }
+.value-main { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.value-main .big { font-family: var(--f-mono); font-weight: 600; font-size: 1.7rem; line-height: 1.1; }
+.value-main .sub { font-size: .8rem; color: var(--muted); }
+.value-main .trend { font-size: .82rem; font-weight: 700; }
+.value-main .trend.down { color: var(--late); } .value-main .trend.up { color: var(--ok); }
+.value-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.value-actions a.btn-small { text-decoration: none; color: inherit; }
+.value-list { display: grid; border-top: 1px solid var(--line); }
+.value-list button { display: grid; grid-template-columns: 1fr auto; gap: 0 12px; padding: 9px 2px; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; font-size: .86rem; }
+.value-list button:last-child { border-bottom: 0; }
+.value-list .vd { color: var(--muted); }
+.value-list .vv { font-family: var(--f-mono); font-weight: 600; text-align: right; }
+.real-cost { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 4px; }
+.real-cost .line { display: flex; justify-content: space-between; gap: 12px; font-size: .84rem; color: var(--muted); }
+.real-cost .line b { color: var(--ink); font-family: var(--f-mono); font-weight: 600; }
+.real-cost .total { font-size: .95rem; color: var(--ink); font-weight: 700; }
+.ratio { display: inline-block; font-size: .72rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-top: 2px; }
+.ratio.ok { background: var(--ok-soft); color: var(--ok); } .ratio.warn { background: var(--warn-soft); color: var(--warn); } .ratio.late { background: var(--late-soft); color: var(--late); }
+.cost-hint { font-size: .8rem; font-weight: 600; min-height: 1.2em; }
+.cost-hint.ok { color: var(--ok); } .cost-hint.warn { color: var(--warn); } .cost-hint.late { color: var(--late); }
+
+/* ---------- bouton flottant ---------- */
+.fab {
+  position: fixed; z-index: 6; right: calc(18px + env(safe-area-inset-right, 0px)); bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  display: inline-flex; align-items: center; gap: 8px; height: 54px; padding: 0 22px 0 18px; border: 0; border-radius: 27px;
+  background: var(--accent); color: var(--accent-ink); font-weight: 700; box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.fab svg { width: 22px; height: 22px; }
+
+/* ---------- connexion ---------- */
+.login { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding-block: 40px; }
+.login-card { width: 100%; max-width: 360px; display: grid; gap: 18px; }
+.login h1 { margin: 0; font-family: var(--f-display); font-stretch: 80%; font-weight: 800; font-size: 2.6rem; line-height: 1; letter-spacing: -.02em; }
+.login p { margin: 0; color: var(--muted); }
+
+/* ---------- formulaires ---------- */
+.field { display: grid; gap: 6px; min-width: 0; }
+.field label, .field .lbl { font-size: .78rem; font-weight: 600; color: var(--muted); }
+.field input, .field select, .field textarea {
+  width: 100%; min-height: 46px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: 16px;
+}
+.field textarea { min-height: 70px; resize: vertical; }
+.field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.btn { height: 48px; border: 0; border-radius: 12px; padding: 0 18px; font-weight: 700; background: var(--accent); color: var(--accent-ink); }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.danger { background: var(--late); color: #fff; }
+.btn[disabled] { opacity: .6; }
+.form-error { color: var(--late); font-size: .88rem; min-height: 1.3em; }
+.kinds { display: flex; flex-wrap: wrap; gap: 6px; }
+.kinds button {
+  height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: .84rem; font-weight: 600;
+}
+.kinds button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 10px; }
+.fieldset .legend { font-size: .78rem; font-weight: 700; color: var(--ink); }
+.fieldset .hint { font-size: .76rem; color: var(--muted); margin-top: -4px; }
+
+/* ---------- feuilles ---------- */
+.sheet-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.4); display: flex; align-items: flex-end; justify-content: center; animation: fade .18s ease; }
+.sheet {
+  width: 100%; max-width: 560px; max-height: 92vh; max-height: 92dvh; overflow-y: auto; background: var(--surface); color: var(--ink);
+  border-radius: 20px 20px 0 0; display: grid; gap: 14px;
+  padding: 18px max(18px, env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px));
+  animation: up .22s cubic-bezier(.2,.8,.2,1);
+}
+@media (min-width: 600px) { .sheet-backdrop { align-items: center; } .sheet { border-radius: 20px; } }
+.sheet h4 { margin: 0; font-family: var(--f-display); font-stretch: 85%; font-weight: 700; font-size: 1.35rem; }
+.sheet p { margin: 0; color: var(--muted); }
+.sheet .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.sheet .actions .btn { flex: 1 1 auto; }
+.menu-list { display: grid; }
+.menu-list button { display: flex; align-items: center; gap: 12px; text-align: left; border: 0; background: none; padding: 14px 6px; border-bottom: 1px solid var(--line); font-weight: 500; }
+.menu-list button:last-child { border-bottom: 0; }
+.menu-list button.danger { color: var(--late); }
+.menu-list svg { width: 20px; height: 20px; flex: none; }
+@keyframes fade { from { opacity: 0; } }
+@keyframes up { from { transform: translateY(30px); opacity: 0; } }
+
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 50; bottom: calc(86px + env(safe-area-inset-bottom, 0px));
+  background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: .88rem; box-shadow: var(--shadow);
+  max-width: calc(100% - 32px); animation: up .2s ease;
+}
+.empty { text-align: center; padding: 40px 20px; color: var(--muted); display: grid; gap: 10px; justify-items: center; }
+.empty strong { font-family: var(--f-display); font-stretch: 85%; font-size: 1.35rem; color: var(--ink); }
+.empty p { margin: 0; max-width: 34ch; }
+.spinner { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; margin: 60px auto; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
+<div id="app"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* =========================================================
+   Configuration
+   ========================================================= */
+const CFG = Object.assign({ appName: 'Carnet auto', supabaseUrl: '', supabaseAnonKey: '', soonKm: 1000, soonDays: 30 }, window.APP_CONFIG || {});
+const DEMO = CFG.demo === true || !CFG.supabaseUrl || !CFG.supabaseAnonKey || !window.supabase;
+
+/* Types d'intervention. « every » = rappel proposé par défaut (modifiable à chaque saisie). */
+const KINDS = [
+  { id: 'vidange', label: 'Vidange', every: { km: 15000, months: 12 } },
+  { id: 'ct', label: 'Contrôle technique', every: { months: 24 } },
+  { id: 'pneus', label: 'Pneus' },
+  { id: 'freins', label: 'Freins' },
+  { id: 'distribution', label: 'Distribution' },
+  { id: 'embrayage', label: 'Embrayage' },
+  { id: 'batterie', label: 'Batterie' },
+  { id: 'clim', label: 'Climatisation' },
+  { id: 'equipement', label: 'Équipement', upgrade: true },
+  { id: 'reparation', label: 'Réparation' },
+  { id: 'autre', label: 'Autre' },
+];
+const kindOf = id => KINDS.find(k => k.id === id) || KINDS[KINDS.length - 1];
+
+/* =========================================================
+   Utilitaires
+   ========================================================= */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now().toString(36) + Math.random().toString(36).slice(2));
+const nf = new Intl.NumberFormat('fr-FR');
+const money = n => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: Number(n) % 1 ? 2 : 0 }).format(Number(n) || 0);
+const km = n => nf.format(Math.round(Number(n) || 0)) + ' km';
+const MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+const MONTHS_LONG = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+const parseDay = s => { const [y, m, d] = String(s).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, d); };
+const isoDay = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const today = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+const fmtDay = s => { const d = parseDay(s); return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; };
+const fmtMonth = s => { const d = parseDay(s); return `${MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}`; };
+const addMonths = (s, n) => { const d = parseDay(s); const day = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + n); d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); return isoDay(d); };
+const daysBetween = (a, b) => Math.round((b - a) / 864e5);
+const plural = (n, one, many) => `${nf.format(n)} ${Math.abs(n) > 1 ? many : one}`;
+const intOrNull = v => { const n = parseInt(String(v).replace(/\s/g, ''), 10); return Number.isFinite(n) ? n : null; };
+const numOrNull = v => { const n = parseFloat(String(v).replace(/\s/g, '').replace(',', '.')); return Number.isFinite(n) ? n : null; };
+
+const ICONS = {
+  back: '<path d="M15 5l-7 7 7 7" />',
+  more: '<circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/>',
+  plus: '<path d="M12 5v14M5 12h14" />',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16v4z" />',
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />',
+  logout: '<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" />',
+  gauge: '<path d="M4 16a8 8 0 1116 0" /><path d="M12 16l4-5" /><circle cx="12" cy="16" r="1.4" />',
+  euro: '<path d="M17 6.5A6.5 6.5 0 1 0 17 17.5" /><path d="M4 10.5h9M4 13.5h9" />',
+  link: '<path d="M14 4h6v6M20 4l-9 9" /><path d="M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5" />',
+  car: '<path d="M5 16l1.5-5.5A2 2 0 018.4 9h7.2a2 2 0 011.9 1.5L19 16" /><rect x="3" y="15" width="18" height="4" rx="1.5" /><circle cx="7.5" cy="19.5" r="1.2" /><circle cx="16.5" cy="19.5" r="1.2" />',
+};
+const icon = n => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
+const odo = (n, big) => {
+  const digits = String(Math.max(0, Math.round(Number(n) || 0))).padStart(6, '0').split('');
+  return `<span class="${big ? 'odo-big' : ''}" style="display:inline-flex;align-items:center"><span class="odo" aria-label="${km(n)}">${digits.map(d => `<span>${d}</span>`).join('')}</span><span class="odo-unit">KM</span></span>`;
+};
+
+/* =========================================================
+   Échéances : pour chaque type, la dernière intervention fixe le prochain rappel
+   ========================================================= */
+function computeDues(vehicle, entries) {
+  const latest = new Map();
+  entries.slice().sort((a, b) => b.date.localeCompare(a.date) || (b.km || 0) - (a.km || 0)).forEach(e => {
+    if (!latest.has(e.kind)) latest.set(e.kind, e);
+  });
+  const t = today(); const out = [];
+  latest.forEach(e => {
+    if (e.next_km == null && !e.next_date) return;
+    let state = 'ok'; const parts = []; let score = Infinity;
+    if (e.next_km != null) {
+      const left = e.next_km - (vehicle.km || 0);
+      parts.push({ type: 'km', left, text: left <= 0 ? `dépassé de ${km(-left)}` : `dans ${km(left)}` });
+      if (left <= 0) state = 'late'; else if (left <= CFG.soonKm && state !== 'late') state = 'warn';
+      score = Math.min(score, left / 40); // ~40 km par jour pour comparer km et jours
+    }
+    if (e.next_date) {
+      const left = daysBetween(t, parseDay(e.next_date));
+      parts.push({ type: 'date', left, text: left < 0 ? `en retard de ${plural(-left, 'jour', 'jours')}` : left === 0 ? 'aujourd’hui' : left <= 60 ? `dans ${plural(left, 'jour', 'jours')}` : `avant ${fmtMonth(e.next_date)}` });
+      if (left < 0) state = 'late'; else if (left <= CFG.soonDays && state !== 'late') state = 'warn';
+      score = Math.min(score, left);
+    }
+    const when = [e.next_km != null ? `à ${km(e.next_km)}` : '', e.next_date ? `le ${fmtDay(e.next_date)}` : ''].filter(Boolean).join(' ou ');
+    out.push({ kind: e.kind, entry: e, state, parts, when, score });
+  });
+  return out.sort((a, b) => a.score - b.score);
+}
+/* =========================================================
+   Cote : valeur estimée, comparaison réparation / valeur, coût réel
+   ========================================================= */
+const COTE_URL = 'https://www.lacentrale.fr/lacote_origine.php';
+const sortVals = vals => vals.slice().sort((a, b) => b.date.localeCompare(a.date) || String(b.created_at || '').localeCompare(String(a.created_at || '')));
+const latestValue = vals => sortVals(vals)[0] || null;
+/* Cote valable à une date : la dernière relevée avant (ou ce jour-là), sinon la plus ancienne après */
+function valueAt(vals, date) {
+  const s = sortVals(vals); if (!s.length) return null;
+  return s.find(v => v.date <= date) || s[s.length - 1];
+}
+/* Part d'une dépense par rapport à la cote : vert < 25 %, orange < 50 %, rouge au-delà */
+function ratioOf(cost, val) {
+  if (cost == null || !val || !(Number(val.value) > 0)) return null;
+  const pct = Math.round(Number(cost) / Number(val.value) * 100);
+  return { pct, state: pct >= 50 ? 'late' : pct >= 25 ? 'warn' : 'ok' };
+}
+function realCost(v, entries, vals) {
+  const cur = latestValue(vals);
+  if (v.purchase_price == null || !cur) return null;
+  const since = v.purchase_date || null;
+  const upkeep = entries.filter(e => !since || e.date >= since).reduce((s, e) => s + (Number(e.cost) || 0), 0);
+  const total = Number(v.purchase_price) + upkeep - Number(cur.value);
+  let months = null;
+  if (since) months = Math.max(1, Math.round(daysBetween(parseDay(since), today()) / 30.44));
+  return { purchase: Number(v.purchase_price), upkeep, value: Number(cur.value), total, months, perMonth: months ? total / months : null };
+}
+
+const worstState = dues => dues.some(d => d.state === 'late') ? 'late' : dues.some(d => d.state === 'warn') ? 'warn' : dues.length ? 'ok' : 'none';
+
+/* =========================================================
+   Backend Supabase
+   ========================================================= */
+function supabaseBackend() {
+  const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
+  const check = ({ data, error }) => { if (error) throw error; return data; };
+  return {
+    async session() { const { data } = await sb.auth.getSession(); return data.session ? data.session.user : null; },
+    onAuth(cb) { sb.auth.onAuthStateChange((_e, s) => cb(s ? s.user : null)); },
+    async signIn(email, password) {
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw new Error(error.message.includes('Invalid') ? 'E-mail ou mot de passe incorrect.' : error.message);
+    },
+    async signOut() { await sb.auth.signOut(); },
+    async isMember() { return check(await sb.rpc('is_member')) === true; },
+    async listVehicles() { return check(await sb.from('car_vehicles').select('*').order('created_at')); },
+    async listEntries(vehicleId) {
+      let q = sb.from('car_entries').select('*').order('date', { ascending: false });
+      if (vehicleId) q = q.eq('vehicle_id', vehicleId);
+      return check(await q);
+    },
+    async saveVehicle(v) {
+      const rec = { name: v.name, model: v.model || null, year: v.year || null, plate: v.plate || null, km: v.km || 0,
+        purchase_price: v.purchase_price ?? null, purchase_date: v.purchase_date || null };
+      if (v.id) return check(await sb.from('car_vehicles').update(rec).eq('id', v.id).select().single());
+      return check(await sb.from('car_vehicles').insert(rec).select().single());
+    },
+    async setKm(id, value) { check(await sb.from('car_vehicles').update({ km: value, km_updated_at: new Date().toISOString() }).eq('id', id)); },
+    async deleteVehicle(id) { check(await sb.from('car_vehicles').delete().eq('id', id)); },
+    async saveEntry(e) {
+      const rec = { vehicle_id: e.vehicle_id, date: e.date, km: e.km, kind: e.kind, title: e.title || null, garage: e.garage || null,
+        cost: e.cost, notes: e.notes || null, next_km: e.next_km, next_date: e.next_date || null };
+      if (e.id) return check(await sb.from('car_entries').update(rec).eq('id', e.id).select().single());
+      return check(await sb.from('car_entries').insert(rec).select().single());
+    },
+    async deleteEntry(id) { check(await sb.from('car_entries').delete().eq('id', id)); },
+    async listValuations(vehicleId) {
+      let q = sb.from('car_valuations').select('*').order('date', { ascending: false });
+      if (vehicleId) q = q.eq('vehicle_id', vehicleId);
+      return check(await q);
+    },
+    async saveValuation(x) {
+      const rec = { vehicle_id: x.vehicle_id, date: x.date, km: x.km, value: x.value, source: x.source || null };
+      if (x.id) return check(await sb.from('car_valuations').update(rec).eq('id', x.id).select().single());
+      return check(await sb.from('car_valuations').insert(rec).select().single());
+    },
+    async deleteValuation(id) { check(await sb.from('car_valuations').delete().eq('id', id)); },
+  };
+}
+
+/* =========================================================
+   Backend de démonstration (en mémoire, exemples)
+   ========================================================= */
+function demoBackend() {
+  let user = null; let listener = () => {};
+  const vehicles = []; const entries = []; const valuations = [];
+  const t = today(); const ago = (months, days = 0) => { const d = new Date(t); d.setMonth(d.getMonth() - months); d.setDate(d.getDate() - days); return isoDay(d); };
+  const v1 = { id: uid(), name: 'Berline', model: 'Exemple · essence 2.0, 2005', year: 2005, plate: '', km: 186200, created_at: ago(60), purchase_price: 4200, purchase_date: ago(40) };
+  const v2 = { id: uid(), name: 'Citadine', model: 'Exemple · 1.2 TCe, 2016', year: 2016, plate: '', km: 89400, created_at: ago(12), purchase_price: 9800, purchase_date: ago(14) };
+  const addVal = (v, e) => valuations.push({ id: uid(), vehicle_id: v.id, source: 'La Centrale', created_at: e.date, ...e });
+  addVal(v1, { date: ago(26), km: 150000, value: 2900 });
+  addVal(v1, { date: ago(12), km: 171000, value: 2300 });
+  addVal(v1, { date: ago(0, 5), km: 186100, value: 1700 });
+  addVal(v2, { date: ago(14), km: 68000, value: 9800 });
+  addVal(v2, { date: ago(1), km: 88900, value: 8400 });
+  vehicles.push(v1, v2);
+  const add = (v, e) => entries.push({ id: uid(), vehicle_id: v.id, title: null, garage: null, cost: null, notes: null, next_km: null, next_date: null, ...e });
+  add(v1, { date: ago(11), km: 171900, kind: 'vidange', title: 'Vidange + filtres', garage: 'Garage du centre', cost: 139, next_km: 186900, next_date: ago(-1) });
+  add(v1, { date: ago(7), km: 177800, kind: 'reparation', title: 'Bougies iridium', cost: 64, notes: 'Posées moi-même.' });
+  add(v1, { date: ago(6), km: 179100, kind: 'reparation', title: 'Courroie d’accessoires', garage: 'Garage du centre', cost: 185 });
+  add(v1, { date: ago(24, -10), km: 155000, kind: 'ct', title: 'Contrôle technique', garage: 'Centre de contrôle', cost: 78, next_date: ago(0, 10), notes: 'Défaillances mineures uniquement.' });
+  add(v1, { date: ago(34), km: 138000, kind: 'distribution', title: 'Kit distribution + pompe à eau', garage: 'Garage du centre', cost: 620 });
+  add(v1, { date: ago(0, 9), km: 186000, kind: 'embrayage', title: 'Devis embrayage', cost: null, notes: 'Patine en 5e en accélérant fort. Réparation prévue.' });
+  add(v2, { date: ago(5), km: 84200, kind: 'vidange', title: 'Vidange', garage: 'Centre auto', cost: 95, next_km: 99200, next_date: addMonths(ago(5), 12) });
+  add(v2, { date: ago(13), km: 76000, kind: 'pneus', title: '2 pneus avant', garage: 'Centre auto', cost: 210 });
+  add(v2, { date: ago(20), km: 70100, kind: 'ct', title: 'Contrôle technique', cost: 75, next_date: addMonths(ago(20), 24) });
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  return {
+    async session() { return user; },
+    onAuth(cb) { listener = cb; },
+    async signIn(email, password) { await sleep(300); if (!email || !password) throw new Error('Remplis l’e-mail et le mot de passe.'); user = { id: 'u1', email }; listener(user); },
+    async signOut() { user = null; listener(null); },
+    async isMember() { return true; },
+    async listVehicles() { return vehicles.map(v => ({ ...v })); },
+    async listEntries(vehicleId) { return entries.filter(e => !vehicleId || e.vehicle_id === vehicleId).sort((a, b) => b.date.localeCompare(a.date)).map(e => ({ ...e })); },
+    async saveVehicle(v) {
+      if (v.id) { const x = vehicles.find(x => x.id === v.id); Object.assign(x, v); return { ...x }; }
+      const x = { ...v, id: uid(), created_at: new Date().toISOString() }; vehicles.push(x); return { ...x };
+    },
+    async setKm(id, value) { vehicles.find(v => v.id === id).km = value; },
+    async deleteVehicle(id) { vehicles.splice(vehicles.findIndex(v => v.id === id), 1); for (let i = entries.length - 1; i >= 0; i--) if (entries[i].vehicle_id === id) entries.splice(i, 1); for (let i = valuations.length - 1; i >= 0; i--) if (valuations[i].vehicle_id === id) valuations.splice(i, 1); },
+    async saveEntry(e) {
+      const v = vehicles.find(v => v.id === e.vehicle_id); if (e.km && e.km > v.km) v.km = e.km;
+      if (e.id) { const x = entries.find(x => x.id === e.id); Object.assign(x, e); return { ...x }; }
+      const x = { ...e, id: uid() }; entries.push(x); return { ...x };
+    },
+    async deleteEntry(id) { entries.splice(entries.findIndex(e => e.id === id), 1); },
+    async listValuations(vehicleId) { return sortVals(valuations.filter(x => !vehicleId || x.vehicle_id === vehicleId)).map(x => ({ ...x })); },
+    async saveValuation(x) {
+      if (x.id) { const y = valuations.find(y => y.id === x.id); Object.assign(y, x); return { ...y }; }
+      const y = { ...x, id: uid(), created_at: new Date().toISOString() }; valuations.push(y); return { ...y };
+    },
+    async deleteValuation(id) { valuations.splice(valuations.findIndex(x => x.id === id), 1); },
+  };
+}
+
+const api = DEMO ? demoBackend() : supabaseBackend();
+
+/* =========================================================
+   État + rendu
+   ========================================================= */
+const app = $('#app');
+const state = { view: 'loading', user: null, vehicles: [], entriesByVehicle: new Map(), valuationsByVehicle: new Map(), vehicle: null };
+const demoBanner = () => DEMO ? `<div class="demo-banner"><div class="wrap"><b>Démo</b><span>Véhicules et interventions d’exemple. Rien n’est enregistré.</span></div></div>` : '';
+
+function render() {
+  if (state.view === 'loading') { app.innerHTML = '<div class="spinner" role="status" aria-label="Chargement"></div>'; return; }
+  if (state.view === 'login') return renderLogin();
+  if (state.view === 'home') return renderHome();
+  if (state.view === 'vehicle') return renderVehicle();
+}
+
+function renderLogin() {
+  app.innerHTML = `${demoBanner()}
+  <main class="login wrap">
+    <form class="login-card" id="login-form" novalidate>
+      ${odo(DEMO ? 186200 : 0, true)}
+      <h1>${esc(CFG.appName)}</h1>
+      <p>${DEMO ? 'Mode démo : mets n’importe quel e-mail et mot de passe.' : 'Même e-mail et même mot de passe que pour Nos photos.'}</p>
+      <div class="field"><label for="email">E-mail</label><input id="email" type="email" autocomplete="username" inputmode="email" value="${DEMO ? 'toi@exemple.fr' : ''}"></div>
+      <div class="field"><label for="password">Mot de passe</label><input id="password" type="password" autocomplete="current-password" value="${DEMO ? 'demo' : ''}"></div>
+      <div class="form-error" id="login-error" role="alert"></div>
+      <button class="btn" type="submit" id="login-btn">Se connecter</button>
+    </form>
+  </main>`;
+  $('#login-form').addEventListener('submit', async e => {
+    e.preventDefault(); const btn = $('#login-btn'); btn.disabled = true; btn.textContent = 'Connexion…'; $('#login-error').textContent = '';
+    try { await api.signIn($('#email').value.trim(), $('#password').value); }
+    catch (err) { $('#login-error').textContent = err.message || 'Connexion impossible.'; btn.disabled = false; btn.textContent = 'Se connecter'; }
+  });
+}
+
+function chipsFor(dues) {
+  const late = dues.filter(d => d.state === 'late').length, warn = dues.filter(d => d.state === 'warn').length;
+  const out = [];
+  if (late) out.push(`<span class="chip late">${plural(late, 'en retard', 'en retard')}</span>`);
+  if (warn) out.push(`<span class="chip warn">${plural(warn, 'à prévoir bientôt', 'à prévoir bientôt')}</span>`);
+  if (!late && !warn) out.push(dues.length ? `<span class="chip ok">À jour</span>` : `<span class="chip none">Aucun rappel</span>`);
+  return out.join('');
+}
+
+function renderHome() {
+  app.innerHTML = `${demoBanner()}
+  <header class="top"><div class="wrap">
+    <h1>${esc(CFG.appName)}</h1>
+    <button class="icon-btn" id="home-menu" aria-label="Menu">${icon('more')}</button>
+  </div></header>
+  <main class="wrap">
+    <section>
+      <div class="section-head"><h3>Véhicules</h3><span class="aside mono">${plural(state.vehicles.length, 'véhicule', 'véhicules')}</span></div>
+      <div class="vehicles">
+        ${state.vehicles.map(v => {
+          const dues = computeDues(v, state.entriesByVehicle.get(v.id) || []);
+          return `<button class="vehicle-card" data-id="${v.id}">
+            <span class="name">${esc(v.name)}</span>
+            <span class="km">${odo(v.km)}</span>
+            <span class="model">${esc([v.model, v.plate].filter(Boolean).join(' · ') || 'Touche pour ouvrir le carnet')}</span>
+            <span class="status-row">${chipsFor(dues)}</span>
+          </button>`;
+        }).join('')}
+        <button class="add-card" id="add-vehicle">${icon('plus')}Ajouter un véhicule</button>
+      </div>
+    </section>
+  </main>`;
+  app.querySelectorAll('.vehicle-card').forEach(b => b.addEventListener('click', () => openVehicle(b.dataset.id)));
+  $('#add-vehicle').addEventListener('click', () => vehicleSheet());
+  $('#home-menu').addEventListener('click', () => menuSheet([{ label: 'Se déconnecter', icon: 'logout', run: () => api.signOut() }]));
+}
+
+function renderVehicle() {
+  const v = state.vehicle; const entries = state.entriesByVehicle.get(v.id) || [];
+  const vals = sortVals(state.valuationsByVehicle.get(v.id) || []);
+  const cur = vals[0] || null; const first = vals[vals.length - 1] || null;
+  const rc = realCost(v, entries, vals);
+  const dues = computeDues(v, entries);
+  const year = new Date().getFullYear();
+  const costYear = entries.filter(e => parseDay(e.date).getFullYear() === year).reduce((s, e) => s + (Number(e.cost) || 0), 0);
+  const costAll = entries.reduce((s, e) => s + (Number(e.cost) || 0), 0);
+  const byYear = new Map();
+  entries.forEach(e => { const y = parseDay(e.date).getFullYear(); if (!byYear.has(y)) byYear.set(y, []); byYear.get(y).push(e); });
+  app.innerHTML = `${demoBanner()}
+  <header class="top"><div class="wrap">
+    <button class="icon-btn" id="back" aria-label="Retour aux véhicules">${icon('back')}</button>
+    <h2>${esc(v.name)}</h2>
+    <button class="icon-btn" id="vehicle-menu" aria-label="Options du véhicule">${icon('more')}</button>
+  </div></header>
+  <main class="wrap">
+    <section class="vehicle-head">
+      ${v.model || v.plate ? `<div class="model">${esc([v.model, v.plate].filter(Boolean).join(' · '))}</div>` : ''}
+      <div class="odo-row">${odo(v.km, true)}<button class="btn-small" id="set-km">${icon('gauge')}Mettre à jour</button></div>
+      ${v.km_updated_at ? `<div class="km-note">Kilométrage relevé le ${fmtDay(v.km_updated_at)}</div>` : ''}
+    </section>
+
+    <section>
+      <div class="section-head"><h3>À prévoir</h3>${dues.length ? `<span class="aside">${chipsFor(dues)}</span>` : ''}</div>
+      ${dues.length ? `<div class="dues">${dues.map(d => `
+        <div class="due ${d.state}">
+          <span class="bar"></span>
+          <div><div class="what">${esc(kindOf(d.kind).label)}</div><div class="when">${esc(d.when)}</div></div>
+          <div class="left">${esc(d.parts.map(p => p.text).join(' · '))}</div>
+        </div>`).join('')}</div>`
+      : `<div class="empty-line">Aucun rappel. Quand tu ajoutes une intervention, indique quand la refaire : l’appli te préviendra à l’approche du kilométrage ou de la date.</div>`}
+    </section>
+
+    <section>
+      <div class="section-head"><h3>Valeur</h3>${cur ? `<span class="aside">${plural(vals.length, 'cote', 'cotes')}</span>` : ''}</div>
+      <div class="value-card">
+        ${cur ? `<div class="value-main">
+          <div><div class="big">${money(cur.value)}</div><div class="sub">Cote du ${fmtDay(cur.date)}${cur.km != null ? ' · ' + km(cur.km) : ''}${cur.source ? ' · ' + esc(cur.source) : ''}</div></div>
+          ${first && first.id !== cur.id ? (() => { const d = Number(cur.value) - Number(first.value); return `<div class="trend ${d < 0 ? 'down' : 'up'}">${d < 0 ? '−' : '+'}${money(Math.abs(d))} depuis ${fmtMonth(first.date)}</div>`; })() : ''}
+        </div>` : `<p style="margin:0;color:var(--muted);font-size:.9rem">Pas encore de cote. Touche <b>Coter</b> pour faire l’estimation gratuite sur La Centrale, puis <b>Ajouter la cote</b> pour reporter le montant ici.</p>`}
+        <div class="value-actions">
+          <a class="btn-small" id="cote-link" href="${COTE_URL}" target="_blank" rel="noopener">${icon('link')}Coter</a>
+          <button class="btn-small" id="add-val">${icon('plus')}Ajouter la cote</button>
+        </div>
+        ${vals.length ? `<div class="value-list">${vals.map(x => `<button data-val="${x.id}"><span class="vd">${fmtDay(x.date)}${x.km != null ? ' · ' + km(x.km) : ''}</span><span class="vv">${money(x.value)}</span></button>`).join('')}</div>` : ''}
+        ${rc ? `<div class="real-cost">
+          <div class="line"><span>Prix d’achat</span><b>${money(rc.purchase)}</b></div>
+          <div class="line"><span>+ Entretien et équipements${v.purchase_date ? ' depuis l’achat' : ''}</span><b>${money(rc.upkeep)}</b></div>
+          <div class="line"><span>− Cote actuelle</span><b>${money(rc.value)}</b></div>
+          <div class="line total"><span>Coût réel${rc.months ? ` sur ${plural(rc.months, 'mois', 'mois')}` : ''}</span><b>${money(rc.total)}</b></div>
+          ${rc.perMonth != null ? `<div class="line"><span>Soit par mois</span><b>${money(Math.round(rc.perMonth))}</b></div>` : ''}
+        </div>` : cur && v.purchase_price == null ? `<div class="km-note">Ajoute le prix d’achat (menu ⋮, Modifier le véhicule) pour voir le coût réel de la voiture.</div>` : ''}
+      </div>
+    </section>
+
+    ${entries.length ? `<section>
+      <div class="stats">
+        <div class="stat"><div class="k">${year}</div><div class="v">${money(costYear)}</div></div>
+        <div class="stat"><div class="k">Total</div><div class="v">${money(costAll)}</div></div>
+        <div class="stat"><div class="k">Entrées</div><div class="v">${nf.format(entries.length)}</div></div>
+      </div>
+    </section>` : ''}
+
+    <section>
+      <div class="section-head"><h3>Historique</h3></div>
+      ${entries.length ? `<div style="display:grid;gap:12px">${[...byYear.entries()].map(([y, list]) => `
+        <div class="year">
+          <div class="year-head"><b>${y}</b><span class="mono">${money(list.reduce((s, e) => s + (Number(e.cost) || 0), 0))}</span></div>
+          ${list.map(e => `<button class="entry" data-id="${e.id}">
+            <span class="d mono">${parseDay(e.date).getDate()} ${MONTHS[parseDay(e.date).getMonth()]}</span>
+            <span class="t"><span class="tag">${esc(kindOf(e.kind).label)}</span>${esc(e.title || '')}</span>
+            <span class="c mono">${e.cost != null ? money(e.cost) : ''}</span>
+            <span class="s">${esc([e.km != null ? km(e.km) : '', e.garage, e.notes].filter(Boolean).join(' · '))}${(() => {
+              const r = Number(e.cost) >= 150 && !kindOf(e.kind).upgrade ? ratioOf(e.cost, valueAt(vals, e.date)) : null;
+              return r ? `<br><span class="ratio ${r.state}">${r.pct} % de la cote</span>` : '';
+            })()}</span>
+          </button>`).join('')}
+        </div>`).join('')}</div>`
+      : `<div class="empty"><strong>Carnet vide</strong><p>Ajoute la première intervention : vidange, pneus, contrôle technique, réparation…</p></div>`}
+    </section>
+  </main>
+  <button class="fab" id="add-entry">${icon('plus')}Ajouter une intervention</button>`;
+  $('#back').addEventListener('click', () => history.back());
+  $('#set-km').addEventListener('click', kmSheet);
+  $('#add-entry').addEventListener('click', () => entrySheet());
+  $('#add-val').addEventListener('click', () => valuationSheet());
+  app.querySelectorAll('[data-val]').forEach(b => b.addEventListener('click', () => valuationMenu(vals.find(x => x.id === b.dataset.val))));
+  app.querySelectorAll('.entry').forEach(b => b.addEventListener('click', () => entryMenu(entries.find(e => e.id === b.dataset.id))));
+  $('#vehicle-menu').addEventListener('click', () => menuSheet([
+    { label: 'Modifier le véhicule', icon: 'edit', run: () => vehicleSheet(v) },
+    { label: 'Supprimer le véhicule', icon: 'trash', danger: true, run: () => confirmSheet({
+      title: `Supprimer « ${v.name} » ?`, text: `Le véhicule et ses ${plural(entries.length, 'intervention', 'interventions')} seront supprimés. C’est définitif.`, ok: 'Supprimer',
+      onConfirm: async () => { await api.deleteVehicle(v.id); toast('Véhicule supprimé'); history.back(); } }) },
+  ]));
+}
+
+/* =========================================================
+   Feuilles
+   ========================================================= */
+let toastTimer;
+function toast(msg) {
+  document.querySelectorAll('.toast').forEach(t => t.remove());
+  const t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); t.textContent = msg;
+  document.body.appendChild(t); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.remove(), Math.max(3000, msg.length * 70));
+}
+function sheet(html, onMount) {
+  const bd = document.createElement('div'); bd.className = 'sheet-backdrop';
+  bd.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;
+  const close = () => { bd.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  bd.addEventListener('click', e => { if (e.target === bd) close(); });
+  document.addEventListener('keydown', onKey); document.body.appendChild(bd);
+  onMount && onMount(bd, close); return close;
+}
+function menuSheet(items, title) {
+  sheet(`${title ? `<h4>${esc(title)}</h4>` : ''}<div class="menu-list">${items.map((it, i) => `<button data-i="${i}" class="${it.danger ? 'danger' : ''}">${icon(it.icon)}${esc(it.label)}</button>`).join('')}</div>
+    <button class="btn ghost" data-close>Annuler</button>`, (bd, close) => {
+    bd.querySelectorAll('[data-i]').forEach(b => b.addEventListener('click', () => { close(); items[+b.dataset.i].run(); }));
+    bd.querySelector('[data-close]').addEventListener('click', close);
+  });
+}
+function confirmSheet({ title, text, ok, onConfirm }) {
+  sheet(`<h4>${esc(title)}</h4><p>${esc(text)}</p><div class="actions"><button class="btn ghost" data-close>Annuler</button><button class="btn danger" data-ok>${esc(ok)}</button></div>`, (bd, close) => {
+    bd.querySelector('[data-close]').addEventListener('click', close);
+    bd.querySelector('[data-ok]').addEventListener('click', async e => { e.target.disabled = true; try { await onConfirm(); close(); } catch (err) { close(); toast(err.message || 'La suppression a échoué.'); } });
+  });
+}
+function formSheet(html, onSubmit, onMount) {
+  sheet(`<form id="sheet-form" novalidate style="display:grid;gap:14px">${html}<div class="form-error" id="sheet-error" role="alert"></div>
+    <div class="actions"><button type="button" class="btn ghost" data-close>Annuler</button><button class="btn" type="submit">Enregistrer</button></div></form>`, (bd, close) => {
+    bd.querySelector('[data-close]').addEventListener('click', close);
+    onMount && onMount(bd);
+    bd.querySelector('#sheet-form').addEventListener('submit', async e => {
+      e.preventDefault(); const btn = bd.querySelector('button[type=submit]'); btn.disabled = true;
+      try { await onSubmit(bd); close(); } catch (err) { bd.querySelector('#sheet-error').textContent = err.message || 'Enregistrement impossible.'; btn.disabled = false; }
+    });
+  });
+}
+
+function vehicleSheet(v) {
+  formSheet(`<h4>${v ? 'Modifier le véhicule' : 'Nouveau véhicule'}</h4>
+    <div class="field"><label for="v-name">Nom</label><input id="v-name" maxlength="40" placeholder="Ex. : Laguna" value="${esc(v?.name || '')}"></div>
+    <div class="field"><label for="v-model">Modèle et motorisation</label><input id="v-model" maxlength="80" placeholder="Ex. : Laguna II 2.0 16V 135 ch, 2005" value="${esc(v?.model || '')}"></div>
+    <div class="row2">
+      <div class="field"><label for="v-plate">Immatriculation</label><input id="v-plate" maxlength="12" placeholder="Facultatif" value="${esc(v?.plate || '')}"></div>
+      <div class="field"><label for="v-km">Kilométrage actuel</label><input id="v-km" inputmode="numeric" placeholder="Ex. : 186000" value="${v?.km ?? ''}"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="v-price">Prix d’achat (€)</label><input id="v-price" inputmode="decimal" placeholder="Facultatif" value="${v?.purchase_price ?? ''}"></div>
+      <div class="field"><label for="v-pdate">Date d’achat</label><input id="v-pdate" type="date" value="${v?.purchase_date?.slice(0, 10) || ''}"></div>
+    </div>`, async bd => {
+    const name = $('#v-name', bd).value.trim(); if (!name) throw new Error('Donne un nom au véhicule.');
+    const saved = await api.saveVehicle({ id: v?.id, name, model: $('#v-model', bd).value.trim(), plate: $('#v-plate', bd).value.trim().toUpperCase(), km: intOrNull($('#v-km', bd).value) || 0,
+      purchase_price: numOrNull($('#v-price', bd).value), purchase_date: $('#v-pdate', bd).value || null });
+    await reloadAll();
+    if (v) { state.vehicle = state.vehicles.find(x => x.id === v.id); render(); toast('Véhicule modifié'); }
+    else openVehicle(saved.id);
+  }, bd => setTimeout(() => $('#v-name', bd).focus(), 60));
+}
+
+function kmSheet() {
+  const v = state.vehicle;
+  formSheet(`<h4>Kilométrage actuel</h4><p>Relève le compteur de temps en temps : les rappels au kilométrage s’appuient dessus.</p>
+    <div class="field"><label for="k-km">Compteur</label><input id="k-km" inputmode="numeric" value="${v.km ?? ''}"></div>`, async bd => {
+    const value = intOrNull($('#k-km', bd).value);
+    if (value == null) throw new Error('Indique un kilométrage.');
+    if (value < (v.km || 0)) throw new Error(`Le compteur était déjà à ${km(v.km)}. Vérifie le chiffre.`);
+    await api.setKm(v.id, value); v.km = value; v.km_updated_at = new Date().toISOString(); render(); toast('Kilométrage mis à jour');
+  }, bd => setTimeout(() => { const i = $('#k-km', bd); i.focus(); i.select(); }, 60));
+}
+
+function valuationSheet(x) {
+  const v = state.vehicle;
+  formSheet(`<h4>${x ? 'Modifier la cote' : 'Ajouter la cote'}</h4>
+    <p>Reporte le montant trouvé sur La Centrale, l’Argus ou ailleurs.</p>
+    <div class="field"><label for="c-value">Cote (€)</label><input id="c-value" inputmode="decimal" placeholder="Ex. : 1700" value="${x?.value ?? ''}"></div>
+    <div class="row2">
+      <div class="field"><label for="c-date">Date</label><input id="c-date" type="date" value="${x?.date?.slice(0, 10) || isoDay(today())}"></div>
+      <div class="field"><label for="c-km">Kilométrage</label><input id="c-km" inputmode="numeric" value="${x ? (x.km ?? '') : (v.km || '')}"></div>
+    </div>
+    <div class="field"><label for="c-source">Source</label><input id="c-source" maxlength="40" value="${esc(x ? (x.source || '') : 'La Centrale')}"></div>`,
+  async bd => {
+    const value = numOrNull($('#c-value', bd).value); if (value == null || value < 0) throw new Error('Indique le montant de la cote.');
+    const date = $('#c-date', bd).value; if (!date) throw new Error('Indique la date.');
+    await api.saveValuation({ id: x?.id, vehicle_id: v.id, value, date, km: intOrNull($('#c-km', bd).value), source: $('#c-source', bd).value.trim() });
+    await reloadVehicle(); toast(x ? 'Cote modifiée' : 'Cote ajoutée');
+  }, bd => setTimeout(() => $('#c-value', bd).focus(), 60));
+}
+function valuationMenu(x) {
+  menuSheet([
+    { label: 'Modifier', icon: 'edit', run: () => valuationSheet(x) },
+    { label: 'Supprimer', icon: 'trash', danger: true, run: () => confirmSheet({ title: 'Supprimer cette cote ?', text: `${money(x.value)}, ${fmtDay(x.date)}.`, ok: 'Supprimer',
+      onConfirm: async () => { await api.deleteValuation(x.id); await reloadVehicle(); toast('Cote supprimée'); } }) },
+  ], `Cote · ${money(x.value)}`);
+}
+
+function entryMenu(e) {
+  menuSheet([
+    { label: 'Modifier', icon: 'edit', run: () => entrySheet(e) },
+    { label: 'Supprimer', icon: 'trash', danger: true, run: () => confirmSheet({ title: 'Supprimer cette intervention ?', text: `${kindOf(e.kind).label}${e.title ? ' · ' + e.title : ''}, ${fmtDay(e.date)}.`, ok: 'Supprimer',
+      onConfirm: async () => { await api.deleteEntry(e.id); await reloadVehicle(); toast('Intervention supprimée'); } }) },
+  ], `${kindOf(e.kind).label}${e.title ? ' · ' + e.title : ''}`);
+}
+
+function entrySheet(e) {
+  const v = state.vehicle; let kind = e?.kind || 'vidange';
+  const nextKmIn = e?.next_km != null && e?.km != null ? e.next_km - e.km : null;
+  const nextMonthsIn = e?.next_date && e?.date ? Math.round(daysBetween(parseDay(e.date), parseDay(e.next_date)) / 30.44) : null;
+  formSheet(`<h4>${e ? 'Modifier l’intervention' : 'Nouvelle intervention'}</h4>
+    <div class="field"><span class="lbl">Type</span><div class="kinds" id="kinds">${KINDS.map(k => `<button type="button" data-k="${k.id}" aria-pressed="${k.id === kind}">${esc(k.label)}</button>`).join('')}</div></div>
+    <div class="field"><label for="e-title">Détail</label><input id="e-title" maxlength="100" placeholder="Ex. : Vidange + filtre à huile, boîtier E85…" value="${esc(e?.title || '')}"></div>
+    <div class="row2">
+      <div class="field"><label for="e-date">Date</label><input id="e-date" type="date" value="${e?.date?.slice(0, 10) || isoDay(today())}"></div>
+      <div class="field"><label for="e-km">Kilométrage</label><input id="e-km" inputmode="numeric" placeholder="${v.km || ''}" value="${e?.km ?? (e ? '' : (v.km || ''))}"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="e-cost">Coût (€)</label><input id="e-cost" inputmode="decimal" placeholder="Ex. : 139" value="${e?.cost ?? ''}"></div>
+      <div class="field"><label for="e-garage">Garage</label><input id="e-garage" maxlength="60" placeholder="Facultatif" value="${esc(e?.garage || '')}"></div>
+    </div>
+    <div class="cost-hint" id="cost-hint" aria-live="polite"></div>
+    <div class="fieldset">
+      <div class="legend">À refaire dans</div>
+      <div class="hint">Laisse vide s’il n’y a rien à prévoir. La première échéance atteinte déclenche le rappel.</div>
+      <div class="row2">
+        <div class="field"><label for="e-nkm">Kilomètres</label><input id="e-nkm" inputmode="numeric" placeholder="Ex. : 15000" value="${nextKmIn ?? ''}"></div>
+        <div class="field"><label for="e-nmo">Mois</label><input id="e-nmo" inputmode="numeric" placeholder="Ex. : 12" value="${nextMonthsIn ?? ''}"></div>
+      </div>
+    </div>
+    <div class="field"><label for="e-notes">Notes</label><textarea id="e-notes" maxlength="500" placeholder="Pièces, références, remarques du garagiste…">${esc(e?.notes || '')}</textarea></div>`,
+  async bd => {
+    const date = $('#e-date', bd).value; if (!date) throw new Error('Indique la date.');
+    const kmv = intOrNull($('#e-km', bd).value);
+    const nkm = intOrNull($('#e-nkm', bd).value), nmo = intOrNull($('#e-nmo', bd).value);
+    if (nkm != null && kmv == null) throw new Error('Pour un rappel en kilomètres, indique le kilométrage de l’intervention.');
+    const saved = { id: e?.id, vehicle_id: v.id, kind, date, km: kmv, title: $('#e-title', bd).value.trim(), garage: $('#e-garage', bd).value.trim(),
+      cost: numOrNull($('#e-cost', bd).value), notes: $('#e-notes', bd).value.trim(),
+      next_km: nkm != null && kmv != null ? kmv + nkm : null, next_date: nmo != null && nmo > 0 ? addMonths(date, nmo) : null };
+    await api.saveEntry(saved);
+    if (kmv != null && kmv > (v.km || 0)) { await api.setKm(v.id, kmv); }
+    await reloadVehicle(); toast(e ? 'Intervention modifiée' : 'Intervention ajoutée');
+  },
+  bd => {
+    const applyDefaults = () => {
+      const k = kindOf(kind); if (e) return;
+      $('#e-nkm', bd).value = k.every?.km ?? ''; $('#e-nmo', bd).value = k.every?.months ?? '';
+    };
+    bd.querySelectorAll('#kinds button').forEach(b => b.addEventListener('click', () => {
+      kind = b.dataset.k; bd.querySelectorAll('#kinds button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); applyDefaults(); updateHint();
+    }));
+    applyDefaults();
+    const vals = state.valuationsByVehicle.get(v.id) || [];
+    const updateHint = () => {
+      const h = $('#cost-hint', bd); const cost = numOrNull($('#e-cost', bd).value);
+      const val = valueAt(vals, $('#e-date', bd).value || isoDay(today()));
+      const r = kindOf(kind).upgrade ? null : ratioOf(cost, val);
+      if (kindOf(kind).upgrade) { h.className = 'cost-hint'; h.style.color = 'var(--muted)'; h.textContent = cost ? 'Équipement : compté dans le coût réel. La cote ne l’inclut pas, ajuste-la toi-même si besoin.' : ''; return; }
+      if (!val) { h.className = 'cost-hint'; h.textContent = cost ? 'Ajoute une cote pour comparer la dépense à la valeur de la voiture.' : ''; h.style.color = 'var(--muted)'; return; }
+      h.style.color = '';
+      if (!r) { h.className = 'cost-hint'; h.textContent = ''; return; }
+      h.className = 'cost-hint ' + r.state;
+      h.textContent = `${r.pct} % de la cote (${money(val.value)})` + (r.state === 'late' ? ' : à comparer avec un remplacement.' : '');
+    };
+    $('#e-cost', bd).addEventListener('input', updateHint); $('#e-date', bd).addEventListener('change', updateHint); updateHint();
+  });
+}
+
+/* =========================================================
+   Données + navigation
+   ========================================================= */
+async function reloadAll() {
+  const [vehicles, entries, vals] = await Promise.all([api.listVehicles(), api.listEntries(), api.listValuations().catch(err => { console.error(err); return []; })]);
+  state.vehicles = vehicles; state.entriesByVehicle = new Map(); state.valuationsByVehicle = new Map();
+  vehicles.forEach(v => { state.entriesByVehicle.set(v.id, []); state.valuationsByVehicle.set(v.id, []); });
+  entries.forEach(e => { if (state.entriesByVehicle.has(e.vehicle_id)) state.entriesByVehicle.get(e.vehicle_id).push(e); });
+  vals.forEach(x => { if (state.valuationsByVehicle.has(x.vehicle_id)) state.valuationsByVehicle.get(x.vehicle_id).push(x); });
+}
+async function reloadVehicle() {
+  const v = state.vehicle; if (!v) return;
+  const [vehicles, entries, vals] = await Promise.all([api.listVehicles(), api.listEntries(v.id), api.listValuations(v.id).catch(err => { console.error(err); return []; })]);
+  state.vehicles = vehicles; state.vehicle = vehicles.find(x => x.id === v.id) || v;
+  state.entriesByVehicle.set(v.id, entries); state.valuationsByVehicle.set(v.id, vals); render();
+}
+async function goHome(push) {
+  state.view = 'home'; state.vehicle = null; if (push) history.pushState({ v: 'home' }, '');
+  try { await reloadAll(); } catch (e) { console.error(e); toast('Impossible de charger les véhicules.'); }
+  render();
+}
+function openVehicle(id, fromPop) {
+  const v = state.vehicles.find(x => x.id === id); if (!v) return goHome();
+  state.vehicle = v; state.view = 'vehicle'; if (!fromPop) history.pushState({ v: 'vehicle', id }, '');
+  render(); window.scrollTo(0, 0);
+}
+window.addEventListener('popstate', e => {
+  document.querySelectorAll('.sheet-backdrop').forEach(b => b.remove());
+  const s = e.state || { v: 'home' };
+  if (s.v === 'home' && state.view !== 'home') goHome(false);
+  else if (s.v === 'vehicle' && state.view !== 'vehicle') openVehicle(s.id, true);
+});
+
+async function afterLogin(user) {
+  state.user = user;
+  try {
+    if (!(await api.isMember())) {
+      app.innerHTML = `<main class="wrap empty"><strong>Compte non autorisé</strong><p>Ce compte n’est pas dans la liste des membres du projet.</p><button class="btn ghost" id="lo">Se déconnecter</button></main>`;
+      $('#lo').onclick = () => api.signOut(); return;
+    }
+  } catch (e) { console.error(e); }
+  history.replaceState({ v: 'home' }, '');
+  await goHome(false);
+}
+async function start() {
+  render();
+  api.onAuth(user => {
+    if (user && !state.user) afterLogin(user);
+    else if (!user) { state.user = null; state.view = 'login'; render(); }
+  });
+  const user = await api.session();
+  if (user) { if (!state.user) afterLogin(user); } else { state.view = 'login'; render(); }
+}
+start();
+
+if ('serviceWorker' in navigator && !DEMO) { try { navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (e) {} }
+})();
+</script>
+
+</body>
+</html>
